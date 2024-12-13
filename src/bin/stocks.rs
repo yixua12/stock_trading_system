@@ -1,125 +1,213 @@
-use tokio::sync::mpsc;
-use rand::Rng;
-use serde::{Serialize, Deserialize};
-use std::sync::{Arc, Mutex};
-use tokio::task;
+use tokio::sync::{mpsc, Mutex};
+use tokio::time::{self, Duration};
+use rand::{Rng, rngs::OsRng};
+use rand::rngs::adapter::ReseedingRng;
+use rand_chacha::ChaCha12Core;
+use rand::SeedableRng;
+use std::sync::Arc;
+use prettytable::{Table, Row, Cell};
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
-struct Stock {
-    id: String,
-    name: String,
-    price: f64,
-    available: u32,
-    bought: u32,
-    sold: u32,
+#[derive(Debug, Clone)]
+pub struct Stock {
+    pub id: String,
+    pub name: String,
+    pub sell_price: f64,
+    pub buy_price: f64,
+    pub available_stock: u32,
 }
 
-impl Stock {
-    fn new(id: &str, name: &str, initial_price: f64, initial_available: u32) -> Self {
-        Stock {
-            id: id.to_string(),
-            name: name.to_string(),
-            price: initial_price,
-            available: initial_available,
-            bought: 0,
-            sold: 0,
+#[derive(Debug, Clone)]
+pub struct StockMarket {
+    pub stocks: Vec<Stock>,
+    pub transactions: Vec<String>,
+    pub usd_price: f64,
+    pub gold_price: f64,
+    pub petrol_price: f64,
+}
+
+impl StockMarket {
+    pub fn new() -> Self {
+        StockMarket {
+            stocks: vec![],
+            transactions: vec![],
+            usd_price: 1.0,
+            gold_price: 1800.0,
+            petrol_price: 100.0,
         }
     }
 
-    // Simulate stock price fluctuation (simple random price change)
-    fn fluctuate(&mut self) {
-        let mut rng = rand::thread_rng();
-        let fluctuation = rng.gen_range(-0.05..0.05); // Price fluctuation between -5% to +5%
-        self.price += self.price * fluctuation;
-        if self.price < 0.1 {
-            self.price = 0.1; // Prevent price from going below $0.1
+    pub fn add_stock(&mut self, stock: Stock) {
+        self.stocks.push(stock);
+    }
+
+    pub fn simulate_price_changes(&mut self, rng: &mut impl Rng) {
+        let usd_fluctuation = rng.gen_range(-0.02..0.02);
+        self.usd_price += usd_fluctuation;
+        println!(
+            "US Dollar has {} by {:.2}%",
+            if usd_fluctuation > 0.0 { "increased" } else { "decreased" },
+            usd_fluctuation * 100.0
+        );
+
+        let gold_fluctuation = rng.gen_range(-0.05..0.05);
+        self.gold_price += self.gold_price * gold_fluctuation;
+        println!(
+            "Gold price has {} by {:.2}%",
+            if gold_fluctuation > 0.0 { "increased" } else { "decreased" },
+            gold_fluctuation * 100.0
+        );
+
+        let petrol_event = rng.gen_range(0..3);
+        match petrol_event {
+            0 => {
+                let petrol_fluctuation = rng.gen_range(-0.03..0.03);
+                self.petrol_price += self.petrol_price * petrol_fluctuation;
+                println!(
+                    "Petroleum price has {} due to news on electric cars, fluctuation: {:.2}%",
+                    if petrol_fluctuation > 0.0 { "increased" } else { "decreased" },
+                    petrol_fluctuation * 100.0
+                );
+            }
+            1 => {
+                let petrol_fluctuation = rng.gen_range(0.01..0.05);
+                self.petrol_price += self.petrol_price * petrol_fluctuation;
+                println!(
+                    "Petroleum price has increased due to rising demand, fluctuation: {:.2}%",
+                    petrol_fluctuation * 100.0
+                );
+            }
+            _ => {
+                let petrol_fluctuation = rng.gen_range(-0.01..-0.03);
+                self.petrol_price += self.petrol_price * petrol_fluctuation;
+                println!(
+                    "Petroleum price has decreased due to oversupply, fluctuation: {:.2}%",
+                    petrol_fluctuation * 100.0
+                );
+            }
+        }
+
+        for stock in &mut self.stocks {
+            let fluctuation = rng.gen_range(-0.05..0.05);
+            let change = stock.sell_price * fluctuation;
+            stock.sell_price += change;
+            stock.buy_price = stock.sell_price * 1.20;
         }
     }
 
-    // Buying stock
-    fn buy(&mut self, quantity: u32) -> Result<(), String> {
-        if self.available >= quantity {
-            self.available -= quantity;
-            self.bought += quantity;
-            Ok(())
-        } else {
-            Err("Not enough stock available".to_string())
-        }
-    }
+    pub fn list_stocks(&self) {
+        let mut table = Table::new();
+        table.add_row(Row::new(vec![
+            Cell::new("Stock ID"),
+            Cell::new("Name"),
+            Cell::new("Sell Price"),
+            Cell::new("Buy Price"),
+            Cell::new("Available Stock"),
+        ]));
 
-    // Selling stock
-    fn sell(&mut self, quantity: u32) -> Result<(), String> {
-        if self.bought >= quantity {
-            self.bought -= quantity;
-            self.available += quantity;
-            self.sold += quantity;
-            Ok(())
-        } else {
-            Err("Not enough stock bought to sell".to_string())
+        for stock in &self.stocks {
+            table.add_row(Row::new(vec![
+                Cell::new(&stock.id),
+                Cell::new(&stock.name),
+                Cell::new(&stock.sell_price.to_string()),
+                Cell::new(&stock.buy_price.to_string()),
+                Cell::new(&stock.available_stock.to_string()),
+            ]));
         }
+
+        print!("\x1b[2J\x1b[H");
+        table.printstd();
     }
 }
 
-// Worker for updating stock price
-async fn update_stock_price(stock: Arc<Mutex<Stock>>) {
+async fn simulate_stock_updates(
+    stock_market: Arc<Mutex<StockMarket>>,
+    stock_tx: mpsc::Sender<Option<Stock>>,
+    rng: Arc<Mutex<ReseedingRng<ChaCha12Core, OsRng>>>,
+) {
+    let stock_ids = vec!["AAPL".to_string(), "GOOGL".to_string(), "AMZN".to_string()];
+
     loop {
-        tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
-        let mut stock = stock.lock().unwrap();
-        stock.fluctuate();
-        println!("Updated Stock: {:?}", stock);
+        for stock_id in &stock_ids {
+            let mut rng_locked = rng.lock().await;
+            let rng_ref = &mut *rng_locked;
+
+            let stock = Stock {
+                id: stock_id.clone(),
+                name: stock_id.clone(),
+                sell_price: rng_ref.gen_range(100.0..500.0),
+                buy_price: rng_ref.gen_range(100.0..500.0) * 1.20,
+                available_stock: rng_ref.gen_range(50..200),
+            };
+
+            // Clone the stock before sending to avoid moving it
+            stock_tx.send(Some(stock.clone())).await.unwrap(); // Clone here
+            println!("New stock update: {:?}", stock);
+        }
+        time::sleep(Duration::from_secs(5)).await;
     }
 }
 
-// Worker for managing buy/sell orders
-async fn manage_orders(stock: Arc<Mutex<Stock>>, tx: mpsc::Sender<String>) {
-    let orders = vec![
-        ("buy", 10),
-        ("sell", 5),
-        ("buy", 15),
-        ("sell", 5),
-    ];
-
-    for order in orders {
-        let mut stock = stock.lock().unwrap();
-        match order {
-            ("buy", qty) => {
-                if let Err(e) = stock.buy(qty) {
-                    tx.send(format!("Buy Error: {}", e)).await.unwrap();
-                } else {
-                    tx.send(format!("Successfully bought {} stocks", qty)).await.unwrap();
-                }
-            },
-            ("sell", qty) => {
-                if let Err(e) = stock.sell(qty) {
-                    tx.send(format!("Sell Error: {}", e)).await.unwrap();
-                } else {
-                    tx.send(format!("Successfully sold {} stocks", qty)).await.unwrap();
-                }
-            },
-            _ => {}
+pub async fn handle_stock_updates(
+    mut stock_rx: mpsc::Receiver<Option<Stock>>,  // Receiver expecting Option<Stock>
+    stock_market: Arc<Mutex<StockMarket>>,
+    rng: Arc<Mutex<ReseedingRng<ChaCha12Core, OsRng>>>,
+) {
+    loop {
+        match stock_rx.recv().await {
+            // Correctly handle the Option<Stock>
+            Some(Some(stock)) => {
+                // Stock exists, we can process it
+                let stock_clone = stock.clone();
+                
+                // Process the cloned stock
+                let mut stock_market_locked = stock_market.lock().await;
+                stock_market_locked.add_stock(stock_clone);  // Use the clone here
+                stock_market_locked.simulate_price_changes(&mut *rng.lock().await);
+                stock_market_locked.list_stocks();
+            }
+            Some(None) => {
+                // Handle the case where `None` was sent, i.e., the channel is closed.
+                println!("Received None, exiting stock update handling.");
+                break;
+            }
+            None => {
+                // If receiving from channel fails
+                println!("Error receiving stock update.");
+                break;
+            }
         }
     }
 }
 
-// Main function to run the system
 #[tokio::main]
 async fn main() {
-    let stock = Arc::new(Mutex::new(Stock::new("AAPL", "Apple Inc.", 150.0, 100)));
+    let stock_market = Arc::new(Mutex::new(StockMarket::new()));
+    let rng = Arc::new(Mutex::new(ReseedingRng::new(
+        ChaCha12Core::from_entropy(),
+        0,
+        OsRng,
+    )));
 
-    let (tx, mut rx) = mpsc::channel::<String>(32);
+    let (stock_tx, stock_rx) = mpsc::channel::<Option<Stock>>(32); // Correct channel type
 
-    let stock_clone = Arc::clone(&stock);
-    tokio::spawn(async move {
-        update_stock_price(stock_clone).await;
+    tokio::spawn({
+        let stock_market = stock_market.clone();
+        let rng = rng.clone();
+        let stock_tx = stock_tx.clone();
+        async move {
+            simulate_stock_updates(stock_market, stock_tx, rng).await;
+        }
     });
 
-    let stock_clone = Arc::clone(&stock);
-    tokio::spawn(async move {
-        manage_orders(stock_clone, tx).await;
+    tokio::spawn({
+        let stock_market = stock_market.clone();
+        let rng = rng.clone();
+        async move {
+            handle_stock_updates(stock_rx, stock_market, rng).await;
+        }
     });
 
-    // Listen for order updates and stock status
-    while let Some(message) = rx.recv().await {
-        println!("{}", message);
+    loop {
+        time::sleep(Duration::from_secs(10)).await;
     }
 }

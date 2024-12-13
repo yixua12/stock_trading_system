@@ -1,0 +1,10 @@
+/Users/christan/Desktop/RTS/stock_trading_system/target/debug/deps/libamq_protocol_types-c25856ffd635bd5d.rmeta: /Users/christan/.cargo/registry/src/index.crates.io-6f17d22bba15001f/amq-protocol-types-6.1.0/src/lib.rs /Users/christan/.cargo/registry/src/index.crates.io-6f17d22bba15001f/amq-protocol-types-6.1.0/src/types.rs /Users/christan/.cargo/registry/src/index.crates.io-6f17d22bba15001f/amq-protocol-types-6.1.0/src/value.rs /Users/christan/.cargo/registry/src/index.crates.io-6f17d22bba15001f/amq-protocol-types-6.1.0/src/flags.rs /Users/christan/.cargo/registry/src/index.crates.io-6f17d22bba15001f/amq-protocol-types-6.1.0/src/generation.rs /Users/christan/.cargo/registry/src/index.crates.io-6f17d22bba15001f/amq-protocol-types-6.1.0/src/parsing.rs
+
+/Users/christan/Desktop/RTS/stock_trading_system/target/debug/deps/amq_protocol_types-c25856ffd635bd5d.d: /Users/christan/.cargo/registry/src/index.crates.io-6f17d22bba15001f/amq-protocol-types-6.1.0/src/lib.rs /Users/christan/.cargo/registry/src/index.crates.io-6f17d22bba15001f/amq-protocol-types-6.1.0/src/types.rs /Users/christan/.cargo/registry/src/index.crates.io-6f17d22bba15001f/amq-protocol-types-6.1.0/src/value.rs /Users/christan/.cargo/registry/src/index.crates.io-6f17d22bba15001f/amq-protocol-types-6.1.0/src/flags.rs /Users/christan/.cargo/registry/src/index.crates.io-6f17d22bba15001f/amq-protocol-types-6.1.0/src/generation.rs /Users/christan/.cargo/registry/src/index.crates.io-6f17d22bba15001f/amq-protocol-types-6.1.0/src/parsing.rs
+
+/Users/christan/.cargo/registry/src/index.crates.io-6f17d22bba15001f/amq-protocol-types-6.1.0/src/lib.rs:
+/Users/christan/.cargo/registry/src/index.crates.io-6f17d22bba15001f/amq-protocol-types-6.1.0/src/types.rs:
+/Users/christan/.cargo/registry/src/index.crates.io-6f17d22bba15001f/amq-protocol-types-6.1.0/src/value.rs:
+/Users/christan/.cargo/registry/src/index.crates.io-6f17d22bba15001f/amq-protocol-types-6.1.0/src/flags.rs:
+/Users/christan/.cargo/registry/src/index.crates.io-6f17d22bba15001f/amq-protocol-types-6.1.0/src/generation.rs:
+/Users/christan/.cargo/registry/src/index.crates.io-6f17d22bba15001f/amq-protocol-types-6.1.0/src/parsing.rs:
